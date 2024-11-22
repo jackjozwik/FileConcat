@@ -38,6 +38,9 @@ Target specific file types:
 ```bash
 python script.py --mode concat --input ./src --output frontend.txt --extensions .ts .tsx .js .jsx
 ```
+```bash
+python script.py --mode concat --input ./project --output combined.txt --extensions .ts .tsx .js .jsx .rs .toml
+```
 
 Focus on specific features:
 ```bash
