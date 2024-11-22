@@ -1,0 +1,821 @@
+
+// File: postcss.config.js
+module.exports = {
+  plugins: {
+    tailwindcss: {},
+    autoprefixer: {},
+  },
+}
+
+
+// File: tailwind.config.js
+// tailwind.config.js
+/** @type {import('tailwindcss').Config} */
+export default {
+  content: [
+    "./index.html",
+    "./src/**/*.{js,ts,jsx,tsx}",
+  ],
+  theme: {
+    extend: {},
+  },
+  plugins: [],
+}
+
+// File: src\App.css
+.App {
+  text-align: center;
+}
+
+.App-logo {
+  height: 40vmin;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .App-logo {
+    animation: App-logo-spin infinite 20s linear;
+  }
+}
+
+.App-header {
+  background-color: #282c34;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(10px + 2vmin);
+  color: white;
+}
+
+.App-link {
+  color: #61dafb;
+}
+
+@keyframes App-logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+
+// File: src\App.js
+// src/App.jsx
+import { invoke } from '@tauri-apps/api/tauri';
+import { open } from '@tauri-apps/api/dialog';
+import { readDir } from '@tauri-apps/api/fs';
+import Split from 'react-split';
+import './index.css';
+import Toast from './components/Toast';
+import { SidebarToggle, Sidebar } from './components/Layout';
+import useAppFunctions from './hooks/useAppFunctions.jsx';
+
+function App() {
+  const { state, actions } = useAppFunctions();
+  const {
+    artistRef,
+    projectRef,
+    basePath,
+    isLoading,
+    validationErrors,
+    directoryStructure,
+    expandedNodes,
+    isProjectFolder,
+    showSidebar,
+    toastMessage
+  } = state;
+
+  return (
+    <div className="h-screen bg-gray-50 flex flex-col">
+      {/* Toast Notification */}
+      {toastMessage && (
+        <Toast
+          message={toastMessage}
+          onClose={() => actions.setToastMessage('')}
+          type={toastMessage.includes('Error') ? 'error' : 'success'}
+        />
+      )}
+
+      {/* Sidebar Toggle Button */}
+      <SidebarToggle
+        showSidebar={showSidebar}
+        onToggle={() => actions.setShowSidebar(!showSidebar)}
+      />
+
+      {/* Main Content */}
+      <div className="flex flex-1 overflow-hidden">
+        <Split
+          sizes={showSidebar ? [70, 30] : [100, 0]}
+          minSize={showSidebar ? [400, 200] : [400, 0]}
+          expandToMin={false}
+          gutterSize={10}
+          snapOffset={30}
+          dragInterval={1}
+          className="split flex w-full"
+        >
+
+          {/* Main Form Panel */}
+          <div className="flex-1 py-8 px-4 overflow-y-auto min-w-0">
+            <div className="max-w-md mx-auto">
+              <div className="text-center mb-8">
+                <h1 className="text-3xl font-bold text-gray-900 mb-2">Project Maker</h1>
+                <p className="text-gray-600">Create project directories with ease</p>
+              </div>
+
+              {/* Artist Reference Section */}
+              <div className="bg-white rounded-lg shadow-md p-6 mb-4">
+                <div className="mb-4">
+                  <label htmlFor="artistRef" className="block text-sm font-medium text-gray-700 mb-1">
+                    Artist Reference
+                  </label>
+                  <input
+                    id="artistRef"
+                    type="text"
+                    placeholder="e.g., NDH"
+                    value={artistRef}
+                    onChange={(e) => actions.setArtistRef(e.target.value.toUpperCase())}
+                    className="uppercase w-full px-3 py-2 border border-gray-300 rounded-md"
+                    maxLength={3}
+                  />
+                </div>
+              </div>
+
+              {/* Project Settings Section */}
+              <div className="bg-white rounded-lg shadow-md p-6 space-y-6">
+                {/* Project Type Toggle */}
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={isProjectFolder}
+                      onChange={(e) => actions.setIsProjectFolder(e.target.checked)}
+                      className="sr-only"
+                    />
+                    <div className={`relative w-10 h-6 transition-colors duration-200 ease-in-out rounded-full ${isProjectFolder ? 'bg-blue-600' : 'bg-gray-200'
+                      }`}>
+                      <div className={`absolute left-1 top-1 w-4 h-4 transition-transform duration-200 ease-in-out bg-white rounded-full ${isProjectFolder ? 'transform translate-x-4' : 'transform translate-x-0'
+                        }`} />
+                    </div>
+                    <span className="ml-3 text-sm font-medium text-gray-900">
+                      Project Folder
+                    </span>
+                  </label>
+                </div>
+
+                {/* Project Reference Input */}
+                <div>
+                  <label htmlFor="projectRef" className="block text-sm font-medium text-gray-700 mb-1">
+                    Project Reference
+                  </label>
+                  <input
+                    id="projectRef"
+                    type="text"
+                    placeholder="e.g., CPS"
+                    value={projectRef}
+                    onChange={(e) => actions.setProjectRef(e.target.value.toUpperCase())}
+                    className="uppercase w-full px-3 py-2 border border-gray-300 rounded-md"
+                    maxLength={3}
+                  />
+                  {validationErrors.projectRef && (
+                    <p className="mt-1 text-xs text-red-500">{validationErrors.projectRef}</p>
+                  )}
+                </div>
+
+                {/* Base Path Input */}
+                <div>
+                  <label htmlFor="basePath" className="block text-sm font-medium text-gray-700 mb-1">
+                    Base Path
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      id="basePath"
+                      type="text"
+                      placeholder="e.g., C:/Projects/"
+                      value={basePath}
+                      onChange={(e) => actions.setBasePath(e.target.value)}
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-md"
+                    />
+                    <button
+                      onClick={actions.handleBasePathSelect}
+                      className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md border border-gray-300 hover:bg-gray-200"
+                    >
+                      Browse
+                    </button>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="space-y-3">
+                  <button
+                    onClick={actions.handleCreateProject}
+                    disabled={isLoading || !projectRef || !artistRef || !basePath}
+                    className={`w-full py-2 px-4 rounded-md text-white font-medium ${isLoading || !projectRef || !artistRef || !basePath
+                      ? 'bg-gray-400 cursor-not-allowed'
+                      : 'bg-blue-600 hover:bg-blue-700'
+                      }`}
+                  >
+                    {isLoading ? 'Creating...' : 'Create Project Structure'}
+                  </button>
+
+                  {isProjectFolder && (
+                    <div className="grid grid-cols-3 gap-3">
+                      <button className="w-full py-2 px-4 bg-green-600 text-white rounded-md hover:bg-green-700">
+                        Add Asset
+                      </button>
+                      <button className="w-full py-2 px-4 bg-purple-600 text-white rounded-md hover:bg-purple-700">
+                        Add RnD
+                      </button>
+                      <button className="w-full py-2 px-4 bg-orange-600 text-white rounded-md hover:bg-orange-700">
+                        Add Shot
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Directory View Sidebar */}
+          <div className={`${showSidebar ? 'block' : 'hidden'} bg-white border-l border-gray-200 overflow-y-auto min-w-0`}>
+            <Sidebar
+              showSidebar={showSidebar}
+              directoryStructure={directoryStructure}
+              expandedNodes={expandedNodes}
+              onToggleNode={actions.toggleNode}
+            />
+          </div>
+        </Split>
+      </div>
+    </div>
+  );
+}
+
+export default App;
+
+// File: src\App.test.js
+import { render, screen } from '@testing-library/react';
+import App from './App';
+
+test('renders learn react link', () => {
+  render(<App />);
+  const linkElement = screen.getByText(/learn react/i);
+  expect(linkElement).toBeInTheDocument();
+});
+
+
+// File: src\index.css
+/* src/index.css or src/styles.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+
+
+/* Custom resizable panel styles */
+.gutter {
+  background-color: #edf2f7;
+  background-repeat: no-repeat;
+  background-position: 50%;
+}
+
+.gutter:hover {
+  background-color: #e2e8f0;
+}
+
+.gutter.gutter-horizontal {
+  background-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUAAAAeCAYAAADkftS9AAAAIklEQVQoU2M4c+bMfxAGAgYYmwGrIIiDjrELjpo5aiZeMwF+yNnOs5KSvgAAAABJRU5ErkJggg==');
+  cursor: col-resize;
+}
+
+/* Directory tree styles */
+.directory-tree {
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+/* Toast notification styles */
+.toast-notification {
+  position: fixed;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 1rem 2rem;
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  transition: opacity 0.3s ease-in-out;
+}
+
+.fade-out {
+  opacity: 0;
+}
+
+// File: src\index.js
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import './index.css';
+import App from './App';
+import reportWebVitals from './reportWebVitals';
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
+
+// If you want to start measuring performance in your app, pass a function
+// to log results (for example: reportWebVitals(console.log))
+// or send to an analytics endpoint. Learn more: https://bit.ly/CRA-vitals
+reportWebVitals();
+
+
+// File: src\reportWebVitals.js
+const reportWebVitals = onPerfEntry => {
+  if (onPerfEntry && onPerfEntry instanceof Function) {
+    import('web-vitals').then(({ getCLS, getFID, getFCP, getLCP, getTTFB }) => {
+      getCLS(onPerfEntry);
+      getFID(onPerfEntry);
+      getFCP(onPerfEntry);
+      getLCP(onPerfEntry);
+      getTTFB(onPerfEntry);
+    });
+  }
+};
+
+export default reportWebVitals;
+
+
+// File: src\setupTests.js
+// jest-dom adds custom jest matchers for asserting on DOM nodes.
+// allows you to do things like:
+// expect(element).toHaveTextContent(/react/i)
+// learn more: https://github.com/testing-library/jest-dom
+import '@testing-library/jest-dom';
+
+
+// File: src\components\Layout.jsx
+import { ChevronRight, ChevronLeft } from 'lucide-react';
+
+// Sidebar toggle button component
+const SidebarToggle = ({ showSidebar, onToggle }) => (
+  <button
+    onClick={onToggle}
+    className="fixed right-4 bottom-4 p-2 bg-white rounded-full shadow-lg hover:bg-gray-100 transition-all duration-200"
+  >
+    {showSidebar ? <ChevronRight size={24} /> : <ChevronLeft size={24} />}
+  </button>
+);
+
+// DirectoryTree component
+// Update only the DirectoryTree component in Layout.jsx
+const DirectoryTree = ({ node, path = '', onToggle, expandedNodes }) => {
+  if (!node) return null;
+  
+  const fullPath = path ? `${path}/${node.name}` : node.name;
+  const isExpanded = expandedNodes.has(fullPath);
+  const hasChildren = node.children && node.children.length > 0;
+
+  return (
+    <div className="directory-tree">
+      {/* Only render if it's not the root node OR if it has a name */}
+      {node.name && (
+        <div 
+          className="directory-item px-2 py-1 hover:bg-gray-100 rounded cursor-pointer flex items-center gap-1"
+          onClick={() => hasChildren && onToggle(fullPath)}
+        >
+          {/* Expand/Collapse Icon - only show for directories with children */}
+          <span className="directory-icon w-4 text-center">
+            {hasChildren ? (isExpanded ? '▼' : '▶') : ''}
+          </span>
+
+          {/* File/Directory Icon */}
+          <span className="directory-icon">
+            {hasChildren ? '📁' : '📁'}
+          </span>
+
+          {/* File/Directory Name */}
+          <span className="directory-name truncate">
+            {node.name}
+          </span>
+        </div>
+      )}
+      
+      {/* Children - only render if expanded or if it's the root node */}
+      {(isExpanded || !path) && hasChildren && (
+        <div className="ml-4">
+          {node.children
+            .sort((a, b) => {
+              // Directories first, then alphabetical
+              if (a.children?.length && !b.children?.length) return -1;
+              if (!a.children?.length && b.children?.length) return 1;
+              return a.name.localeCompare(b.name);
+            })
+            .map((child, index) => (
+              <DirectoryTree 
+                key={`${fullPath}-${child.name}-${index}`}
+                node={child} 
+                path={fullPath}
+                onToggle={onToggle}
+                expandedNodes={expandedNodes}
+              />
+            ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+
+// Sidebar component
+const Sidebar = ({ showSidebar, directoryStructure, expandedNodes, onToggleNode }) => {
+  if (!showSidebar) return null;
+
+  return (
+    <div className="bg-white border-l border-gray-200 overflow-y-auto">
+      <div className="p-4">
+        <h2 className="text-lg font-semibold mb-4">Directory Structure</h2>
+        {directoryStructure && (
+          <DirectoryTree
+            node={directoryStructure}
+            onToggle={onToggleNode}
+            expandedNodes={expandedNodes}
+          />
+        )}
+      </div>
+    </div>
+  );
+};
+
+// Export components
+export { SidebarToggle, Sidebar, DirectoryTree };
+
+// File: src\components\Toast.jsx
+import { X } from 'lucide-react';
+import { useState, useEffect } from 'react';
+
+// Toast notification component with fade animation and close button
+const Toast = ({ message, onClose, type = 'success', duration = 3000 }) => {
+  const [isVisible, setIsVisible] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsVisible(false);
+      // Additional delay to allow fade out animation to complete
+      setTimeout(onClose, 300);
+    }, duration);
+
+    return () => clearTimeout(timer);
+  }, [duration, onClose]);
+
+  return (
+    <div
+      className={`fixed bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-2 px-6 py-3 rounded-lg shadow-lg transition-all duration-300 ${
+        isVisible ? 'opacity-100' : 'opacity-0 translate-y-2'
+      } ${
+        type === 'error'
+          ? 'bg-red-50 text-red-700 border border-red-200'
+          : 'bg-green-50 text-green-700 border border-green-200'
+      }`}
+    >
+      <span>{message}</span>
+      <button
+        onClick={() => {
+          setIsVisible(false);
+          setTimeout(onClose, 300);
+        }}
+        className="p-1 hover:bg-black/10 rounded-full"
+      >
+        <X size={16} />
+      </button>
+    </div>
+  );
+};
+
+export default Toast;
+
+// File: src\hooks\useAppFunctions.jsx
+import { useState, useEffect, useCallback } from 'react';
+import { invoke } from '@tauri-apps/api/tauri';
+import { open } from '@tauri-apps/api/dialog';
+import { readDir } from '@tauri-apps/api/fs';
+
+const useAppFunctions = () => {
+  // State declarations
+  const [artistRef, setArtistRef] = useState(() => localStorage.getItem('artistRef') || '');
+  const [projectRef, setProjectRef] = useState('');
+  const [basePath, setBasePath] = useState(() => localStorage.getItem('lastBasePath') || '');
+  const [isLoading, setIsLoading] = useState(false);
+  const [validationErrors, setValidationErrors] = useState({});
+  const [directoryStructure, setDirectoryStructure] = useState({
+    name: 'Project Root',
+    children: []
+  });
+  const [expandedNodes, setExpandedNodes] = useState(new Set());
+  const [isProjectFolder, setIsProjectFolder] = useState(true);
+  const [showSidebar, setShowSidebar] = useState(true);
+  const [toastMessage, setToastMessage] = useState('');
+
+  // Validation function
+  const validateInputs = useCallback(() => {
+    const errors = {};
+    if (projectRef.length !== 3) {
+      errors.projectRef = 'Project reference must be exactly 3 characters';
+    }
+    if (artistRef.length !== 3) {
+      errors.artistRef = 'Artist reference must be exactly 3 characters';
+    }
+    return errors;
+  }, [projectRef, artistRef]);
+
+  // Project creation
+  const createProject = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const response = await invoke('create_project_structure', {
+        config: {
+          project_ref: projectRef.toUpperCase(),
+          artist_ref: artistRef.toUpperCase(),
+          base_path: basePath
+        }
+      });
+      setToastMessage(response);
+      await loadDirectoryStructure();
+    } catch (error) {
+      setToastMessage(`Error: ${error}`);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [projectRef, artistRef, basePath]);
+
+  // Only update the loadDirectoryStructure function in useAppFunctions.jsx
+  // Update only the loadDirectoryStructure function in useAppFunctions.jsx
+  const loadDirectoryStructure = useCallback(async () => {
+    try {
+      if (!basePath) return;
+      
+      // Use the new Rust command for directory reading
+      const structure = await invoke('get_directory_structure', {
+        path: basePath
+      });
+      
+      // Set the structure directly as it's already in the format we want
+      setDirectoryStructure(structure);
+    } catch (error) {
+      console.error('Failed to load directory structure:', error);
+      setToastMessage('Failed to load directory structure');
+    }
+  }, [basePath]);
+
+  // Effects
+  useEffect(() => {
+    if (basePath) {
+      loadDirectoryStructure();
+    }
+  }, [basePath, loadDirectoryStructure]);
+
+  // Save to localStorage
+  useEffect(() => {
+    if (artistRef) localStorage.setItem('artistRef', artistRef);
+  }, [artistRef]);
+
+  useEffect(() => {
+    if (basePath) localStorage.setItem('lastBasePath', basePath);
+  }, [basePath]);
+
+  // Action handlers
+  const handleCreateProject = useCallback(() => {
+    const errors = validateInputs();
+    if (Object.keys(errors).length === 0) {
+      createProject();
+    } else {
+      setValidationErrors(errors);
+    }
+  }, [validateInputs, createProject]);
+
+  const handleBasePathSelect = useCallback(async () => {
+    try {
+      const selected = await open({
+        directory: true,
+        multiple: false,
+      });
+      if (selected) {
+        setBasePath(selected);
+      }
+    } catch (err) {
+      console.error('Failed to select directory:', err);
+    }
+  }, []);
+
+  const toggleNode = useCallback((path) => {
+    setExpandedNodes(prev => {
+      const next = new Set(prev);
+      if (next.has(path)) {
+        next.delete(path);
+      } else {
+        next.add(path);
+      }
+      return next;
+    });
+  }, []);
+
+  return {
+    state: {
+      artistRef,
+      projectRef,
+      basePath,
+      isLoading,
+      validationErrors,
+      directoryStructure,
+      expandedNodes,
+      isProjectFolder,
+      showSidebar,
+      toastMessage
+    },
+    actions: {
+      setArtistRef,
+      setProjectRef,
+      setBasePath,
+      setIsProjectFolder,
+      setShowSidebar,
+      setToastMessage,
+      handleBasePathSelect,
+      handleCreateProject,
+      toggleNode
+    }
+  };
+};
+
+export default useAppFunctions;
+
+// File: src-tauri\Cargo.toml
+[package]
+name = "app"
+version = "0.1.0"
+description = "A Tauri App"
+authors = ["you"]
+license = ""
+repository = ""
+default-run = "app"
+edition = "2021"
+rust-version = "1.60"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[build-dependencies]
+tauri-build = { version = "1.5.5", features = [] }
+
+[dependencies]
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+tauri = { version = "1.8.1", features = [ "fs-all", "dialog-all"] }
+
+[features]
+# this feature is used for production builds or when `devPath` points to the filesystem and the built-in dev server is disabled.
+# If you use cargo directly instead of tauri's cli you can use this feature flag to switch between tauri's `dev` and `build` modes.
+# DO NOT REMOVE!!
+custom-protocol = [ "tauri/custom-protocol" ]
+
+
+// File: src-tauri\build.rs
+fn main() {
+  tauri_build::build()
+}
+
+
+// File: src-tauri\src\main.rs
+// src-tauri/src/main.rs
+use std::fs;
+use std::path::PathBuf;
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Serialize, Deserialize)]
+struct ProjectConfig {
+    project_ref: String,
+    artist_ref: String,
+    base_path: String,
+}
+
+
+#[derive(Debug, Serialize)]
+struct DirEntry {
+    name: String,
+    path: String,
+    children: Vec<DirEntry>,
+    is_directory: bool,
+}
+
+#[tauri::command]
+async fn create_project_structure(config: ProjectConfig) -> Result<String, String> {
+    let project_dir = format!("{}{}_{}", 
+        config.base_path,
+        config.project_ref,
+        config.artist_ref
+    );
+
+    let base_path = PathBuf::from(&project_dir);
+
+    // Create main directories
+    let directories = vec![
+        "adobe",
+        "Deliveries",
+        "houdini",
+        "maya/assets",
+        "maya/cache/ncache",
+        "maya/cache/particles",
+        "maya/cache/alembic",
+        "maya/images",
+        "maya/scenes",
+        "maya/scripts",
+        "maya/sourceimages",
+        "nuke/scripts",
+        "nuke/renders",
+        "nuke/Plates",
+        "nuke/Reference",
+        "zbrush"
+    ];
+
+    for dir in directories {
+        let path = base_path.join(dir);
+        fs::create_dir_all(&path).map_err(|e| e.to_string())?;
+    }
+
+    Ok(format!("Project structure created at {}", project_dir))
+}
+
+#[tauri::command]
+async fn get_directory_structure(path: String) -> Result<DirEntry, String> {
+    println!("Reading directory: {}", path);
+    read_dir_recursive(&PathBuf::from(path))
+        .map_err(|e| e.to_string())
+}
+
+fn read_dir_recursive(path: &PathBuf) -> Result<DirEntry, std::io::Error> {
+    let metadata = fs::metadata(path)?;
+    let name = path.file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("")
+        .to_string();
+    
+    if metadata.is_dir() {
+        println!("Processing directory: {}", path.display());
+        let mut children = Vec::new();
+        
+        for entry in fs::read_dir(path)? {
+            let entry = entry?;
+            let child_path = entry.path();
+            println!("Found child: {}", child_path.display());
+            
+            children.push(read_dir_recursive(&child_path)?);
+        }
+        
+        // Sort children (directories first, then alphabetically)
+        children.sort_by(|a, b| {
+            match (a.is_directory, b.is_directory) {
+                (true, false) => std::cmp::Ordering::Less,
+                (false, true) => std::cmp::Ordering::Greater,
+                _ => a.name.cmp(&b.name),
+            }
+        });
+
+        Ok(DirEntry {
+            name,
+            path: path.to_string_lossy().into_owned(),
+            children,
+            is_directory: true,
+        })
+    } else {
+        Ok(DirEntry {
+            name,
+            path: path.to_string_lossy().into_owned(),
+            children: Vec::new(),
+            is_directory: false,
+        })
+    }
+}
+
+fn main() {
+    tauri::Builder::default()
+        .invoke_handler(tauri::generate_handler![
+            create_project_structure,
+            get_directory_structure
+        ])
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+}
